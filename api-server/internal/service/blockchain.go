@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"github.com/google/uuid"
 	"github.com/ivan/blockchain/api-server/internal/model"
 )
@@ -27,7 +28,7 @@ type Blockchain struct {
 }
 
 func NewBlockchain(stor StorageBlockchain) *Blockchain {
-	return &Blockchain{queueData: make(chan KeyData, 1000), queueBlock: make(chan model.Block, 1000), storage: stor}
+	return &Blockchain{queueData: make(chan KeyData, 100000), queueBlock: make(chan model.Block, 100000), storage: stor}
 }
 
 func (b *Blockchain) AddData(data string) (string, error) {
@@ -54,7 +55,7 @@ func (b *Blockchain) AddBlock(blockStr string) error {
 	// обернуть мьютексом
 	// копасити
 	// запустить отдельный поток для обработки канала с блоками
-	
+
 	block := model.Block{}
 	err := json.Unmarshal([]byte(blockStr), &block)
 	if err != nil {
@@ -68,19 +69,27 @@ func (b *Blockchain) AddBlock(blockStr string) error {
 
 	prevHash := sha256.Sum256(prevHead)
 	block.Head.Previous = hex.EncodeToString(prevHash[:])
-	b.queueBlock <- b.lastBlock
-	b.lastBlock = block
 
-	return nil
+	select {
+	case b.queueBlock <- b.lastBlock:
+		b.lastBlock = block
+		return nil
+	default:
+		return errors.New("block queue is full")
+	}
 }
 
 func (b *Blockchain) ReceiveBlock() (string, error) {
-	block := <-b.queueBlock
-	jsonData, err := json.Marshal(block)
-	if err != nil {
-		return "", err
+	select {
+	case block := <-b.queueBlock:
+		jsonData, err := json.Marshal(block)
+		if err != nil {
+			return "", err
+		}
+		return string(jsonData), nil
+	default:
+		return "", errors.New("block queue is empty")
 	}
-	return string(jsonData), nil
 }
 
 func (b *Blockchain) Close() error {

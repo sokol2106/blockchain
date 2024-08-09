@@ -159,3 +159,26 @@ func NewBlock(msg string, key string) *model.Block {
 func TestServerSuite(t *testing.T) {
 	suite.Run(t, new(ServerTestSuite))
 }
+
+// Benchmark
+
+func BenchmarkAddBlock(b *testing.B) {
+	suite := &ServerTestSuite{}
+	suite.SetupSuite()
+	defer suite.TearSuiteDownSuite()
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < b.N; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			block := NewBlock("test ", "ggggggg")
+			jsonBlock, _ := json.Marshal(block)
+			_, _ = http.Post(suite.server.URL+"/api/block", "application/json", strings.NewReader(string(jsonBlock)))
+			_, _ = http.Get(suite.server.URL + "/api/block")
+		}()
+	}
+
+	wg.Wait()
+}
