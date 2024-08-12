@@ -20,6 +20,7 @@ func Run(addServer string, cnfDataBase string) {
 		}
 	}
 	srvBlockchain := service.NewBlockchain(stor)
+	srvBlockchain.Run()
 	srvVerify := service.NewVerification()
 
 	ser := server.NewServer(handlers.Router(handlers.NewHandlers(srvBlockchain, srvVerify)), addServer)

@@ -11,10 +11,12 @@ import (
 	"github.com/stretchr/testify/suite"
 	"io"
 	"log"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 import (
@@ -32,6 +34,7 @@ func (suite *ServerTestSuite) SetupSuite() {
 	stor := storage.NewPostgresql("")
 	srvBlockchain := service.NewBlockchain(stor)
 	srvVerify := service.NewVerification()
+	srvBlockchain.Run()
 
 	suite.server = httptest.NewServer(handlers.Router(handlers.NewHandlers(srvBlockchain, srvVerify)))
 }
@@ -91,14 +94,14 @@ func (suite *ServerTestSuite) TestAddBlock() {
 		wg1 sync.WaitGroup
 	)
 
-	blocks := make([]*model.Block, 100)
+	blocks := make([]*model.Block, 200)
 	respBlocks := make([]*model.Block, len(blocks))
 
 	for i, _ := range blocks {
 		wg1.Add(1)
 		go func() {
 			defer wg1.Done()
-			blocks[i] = NewBlock("test "+strconv.Itoa(i), strconv.Itoa(i))
+			blocks[i] = NewBlock(generateRandomString(10000), strconv.Itoa(i))
 			jsonBlock, err := json.Marshal(blocks[i])
 			suite.Nil(err)
 			resp, err := http.Post(suite.server.URL+"/api/block", "application/json", strings.NewReader(string(jsonBlock)))
@@ -131,7 +134,7 @@ func (suite *ServerTestSuite) TestAddBlock() {
 
 			log.Printf("!!!! KEY  %s !!!! Previous  %s !!!! CURREN Previous  %s",
 				respBlocks[i].Head.Key,
-				respBlocks[i].Head.Previous,
+				respBlocks[i].Head.Hash,
 				hex.EncodeToString(prevHash[:]),
 			)
 
@@ -152,6 +155,7 @@ func NewBlock(msg string, key string) *model.Block {
 	block.Head.Key = key
 	hash := sha256.Sum256([]byte(block.Data))
 	block.Head.Merkley = hex.EncodeToString(hash[:])
+	block.Head.Hash = ""
 
 	return &block
 }
@@ -173,7 +177,7 @@ func BenchmarkAddBlock(b *testing.B) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			block := NewBlock("test ", "ggggggg")
+			block := NewBlock(generateRandomString(10000), "ggggggg")
 			jsonBlock, _ := json.Marshal(block)
 			_, _ = http.Post(suite.server.URL+"/api/block", "application/json", strings.NewReader(string(jsonBlock)))
 			_, _ = http.Get(suite.server.URL + "/api/block")
@@ -181,4 +185,16 @@ func BenchmarkAddBlock(b *testing.B) {
 	}
 
 	wg.Wait()
+}
+
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	var seededRand *rand.Rand = rand.New(
+		rand.NewSource(time.Now().UnixNano()))
+
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[seededRand.Intn(len(charset))]
+	}
+	return string(b)
 }

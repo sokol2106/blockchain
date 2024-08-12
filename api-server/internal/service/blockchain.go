@@ -1,3 +1,4 @@
+//go:generate mockgen -destination=mock_storageblockchain.go -package=service . Service
 package service
 
 import (
@@ -7,6 +8,7 @@ import (
 	"errors"
 	"github.com/google/uuid"
 	"github.com/ivan/blockchain/api-server/internal/model"
+	"log"
 )
 
 type StorageBlockchain interface {
@@ -21,14 +23,30 @@ type KeyData struct {
 }
 
 type Blockchain struct {
-	queueData  chan KeyData
-	lastBlock  model.Block
-	queueBlock chan model.Block
-	storage    StorageBlockchain
+	queueData       chan KeyData
+	rawBlockQueue   chan model.Block
+	blockChainQueue chan model.Block
+	prevBlock       model.Block
+	storage         StorageBlockchain
 }
 
 func NewBlockchain(stor StorageBlockchain) *Blockchain {
-	return &Blockchain{queueData: make(chan KeyData, 100000), queueBlock: make(chan model.Block, 100000), storage: stor}
+
+	return &Blockchain{
+		queueData:       make(chan KeyData, 100000),
+		rawBlockQueue:   make(chan model.Block, 100000),
+		blockChainQueue: make(chan model.Block, 100000),
+		prevBlock: model.Block{
+			Data: "load block",
+			Head: model.BlockHeader{
+				Hash:    "6c818bd1063cb91ebd803fc894c01a49fd5fecaa4a86693c7c02b8296b9d45ee",
+				Merkley: "4rfvbgt56yhn",
+				Key:     "12345678",
+				Noce:    "12345678",
+			},
+		},
+		storage: stor,
+	}
 }
 
 func (b *Blockchain) AddData(data string) (string, error) {
@@ -51,28 +69,14 @@ func (b *Blockchain) ReceiveData() (string, error) {
 }
 
 func (b *Blockchain) AddBlock(blockStr string) error {
-
-	// обернуть мьютексом
-	// копасити
-	// запустить отдельный поток для обработки канала с блоками
-
 	block := model.Block{}
 	err := json.Unmarshal([]byte(blockStr), &block)
 	if err != nil {
 		return err
 	}
 
-	prevHead, err := json.Marshal(b.lastBlock.Head)
-	if err != nil {
-		return err
-	}
-
-	prevHash := sha256.Sum256(prevHead)
-	block.Head.Previous = hex.EncodeToString(prevHash[:])
-
 	select {
-	case b.queueBlock <- b.lastBlock:
-		b.lastBlock = block
+	case b.rawBlockQueue <- block:
 		return nil
 	default:
 		return errors.New("block queue is full")
@@ -81,7 +85,7 @@ func (b *Blockchain) AddBlock(blockStr string) error {
 
 func (b *Blockchain) ReceiveBlock() (string, error) {
 	select {
-	case block := <-b.queueBlock:
+	case block := <-b.blockChainQueue:
 		jsonData, err := json.Marshal(block)
 		if err != nil {
 			return "", err
@@ -94,6 +98,34 @@ func (b *Blockchain) ReceiveBlock() (string, error) {
 
 func (b *Blockchain) Close() error {
 	close(b.queueData)
-	close(b.queueBlock)
+	close(b.rawBlockQueue)
+	close(b.blockChainQueue)
 	return b.storage.Close()
+}
+
+func (b *Blockchain) Run() {
+	go func() {
+		for {
+			// Получаем не обработанный блок
+			rawBlock, ok := <-b.rawBlockQueue
+			if !ok {
+				break
+			}
+
+			rawHead, err := json.Marshal(rawBlock.Head)
+			if err != nil {
+				log.Printf("error marshal (Run Blockchain): %s", err)
+				break
+			}
+
+			currentBlockHash := sha256.Sum256(rawHead)
+
+			newHash := hex.EncodeToString(currentBlockHash[:]) + b.prevBlock.Head.Hash
+			prevHash := sha256.Sum256([]byte(newHash))
+			rawBlock.Head.Hash = hex.EncodeToString(prevHash[:])
+
+			b.blockChainQueue <- b.prevBlock
+			b.prevBlock = rawBlock
+		}
+	}()
 }
