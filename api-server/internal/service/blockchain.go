@@ -2,6 +2,7 @@
 package service
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,7 +14,7 @@ import (
 
 type StorageBlockchain interface {
 	AddBlock(model.Block) error
-	GetBlock(string) (*model.Block, error)
+	GetBlock(context.Context, string) (*model.Block, error)
 	Close() error
 }
 
@@ -103,7 +104,7 @@ func (b *Blockchain) Close() error {
 	return b.storage.Close()
 }
 
-func (b *Blockchain) Run() {
+func (b *Blockchain) RunProcessBlockChain() {
 	go func() {
 		for {
 			// Получаем не обработанный блок
@@ -126,6 +127,23 @@ func (b *Blockchain) Run() {
 
 			b.blockChainQueue <- b.prevBlock
 			b.prevBlock = rawBlock
+		}
+	}()
+}
+
+func (b *Blockchain) RunBlockchainDBLoad() {
+	go func() {
+		for {
+			rawBlock, ok := <-b.blockChainQueue
+			if !ok {
+				break
+			}
+
+			err := b.storage.AddBlock(rawBlock)
+			if err != nil {
+				log.Printf("error Load DB : %s", err)
+				break
+			}
 		}
 	}()
 }

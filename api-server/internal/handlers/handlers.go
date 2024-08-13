@@ -146,16 +146,18 @@ func Router(handler *Handlers) chi.Router {
 	// router
 
 	// приходит внешне
-	router.Post("/api/data", http.HandlerFunc(handler.AddDataBlockchain))
-	router.Get("/api/data", http.HandlerFunc(handler.GetDataBlockchain))
-	router.Post("/api/check/{key}", http.HandlerFunc(handler.CheckData))
-	router.Get("/api/check/{queue_id}", http.HandlerFunc(handler.StatusProcessCheckData))
+	router.Post("/api/data", http.HandlerFunc(handler.AddDataBlockchain))                 // новые данные для сохранения
+	router.Post("/api/check/{key}", http.HandlerFunc(handler.CheckData))                  // ключ + данные для проверки подлинности
+	router.Get("/api/check/{queue_id}", http.HandlerFunc(handler.StatusProcessCheckData)) // результат проверки подлинности
 
 	// приходит от второго сервиса
-	router.Post("/api/block", http.HandlerFunc(handler.AddBlock))
-	router.Get("/api/block", http.HandlerFunc(handler.GetBlock))
-	router.Get("/api/block/check", http.HandlerFunc(handler.GetCheckDataBlock))
-	router.Post("/api/block/check", http.HandlerFunc(handler.SetStatusProcessCheckData))
+	router.Get("/api/data", http.HandlerFunc(handler.GetDataBlockchain)) // данные для создания блока
+
+	router.Post("/api/block", http.HandlerFunc(handler.AddBlock)) // добавление сформированного блока
+	router.Get("/api/block", http.HandlerFunc(handler.GetBlock))  // запрос блока из цепи блокчейн
+
+	router.Get("/api/block/check", http.HandlerFunc(handler.GetCheckDataBlock))          // запрос данных для проверки подлинности
+	router.Post("/api/block/check", http.HandlerFunc(handler.SetStatusProcessCheckData)) // отправка результата проверки
 
 	return router
 }

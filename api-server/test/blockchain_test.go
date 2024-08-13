@@ -19,7 +19,8 @@ func TestRunBlockchain(t *testing.T) {
 	pgsql := storage.NewPostgresql("")
 	blch := service.NewBlockchain(pgsql)
 	defer blch.Close()
-	blch.Run()
+	blch.RunProcessBlockChain()
+	blch.RunBlockchainDBLoad()
 
 	count := 100
 

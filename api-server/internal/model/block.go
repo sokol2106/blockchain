@@ -16,3 +16,8 @@ type CheckDataBlock struct {
 	Block Block  `json:"block"`
 	Data  string `json:"data"`
 }
+
+type DataKey struct {
+	Key  string `json:"key"`
+	Data string `json:"queueID"`
+}

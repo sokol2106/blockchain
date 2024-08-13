@@ -76,9 +76,40 @@ func (pstg *PostgreSQL) PingContext() error {
 }
 
 func (pstg *PostgreSQL) AddBlock(block model.Block) error {
-	return nil
+	var err error = nil
+	_, err = pstg.db.ExecContext(context.Background(), "INSERT INTO public.blockchain (key, hash, merkley, noce, data) "+
+		"VALUES ($1, $2, $3, $4, $5)",
+		block.Head.Key,
+		block.Head.Hash,
+		block.Head.Merkley,
+		block.Head.Noce,
+		block.Data,
+	)
+
+	return err
 }
 
-func (pstg *PostgreSQL) GetBlock(key string) (*model.Block, error) {
-	return nil, nil
+func (pstg *PostgreSQL) GetBlock(ctx context.Context, key string) (*model.Block, error) {
+	var (
+		err     error = nil
+		hash    string
+		merkley string
+		noce    string
+		data    string
+	)
+	ctxDB, cancelDB := context.WithCancel(ctx)
+	defer cancelDB()
+
+	row := pstg.db.QueryRowContext(ctxDB, "SELECT hash, merkley, noce, data FROM public.blockchain WHERE key=$1", key)
+	err = row.Scan(&hash, &merkley, &noce, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.Block{Data: data, Head: model.BlockHeader{
+		Hash:    hash,
+		Merkley: merkley,
+		Noce:    noce,
+		Key:     key,
+	}}, err
 }

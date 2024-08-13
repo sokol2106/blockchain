@@ -34,7 +34,8 @@ func (suite *ServerTestSuite) SetupSuite() {
 	stor := storage.NewPostgresql("")
 	srvBlockchain := service.NewBlockchain(stor)
 	srvVerify := service.NewVerification()
-	srvBlockchain.Run()
+	srvBlockchain.RunProcessBlockChain()
+	srvBlockchain.RunBlockchainDBLoad()
 
 	suite.server = httptest.NewServer(handlers.Router(handlers.NewHandlers(srvBlockchain, srvVerify)))
 }
