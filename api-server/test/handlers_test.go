@@ -33,9 +33,9 @@ type ServerTestSuite struct {
 func (suite *ServerTestSuite) SetupSuite() {
 	stor := storage.NewPostgresql("")
 	srvBlockchain := service.NewBlockchain(stor)
-	srvVerify := service.NewVerification()
+	srvVerify := service.NewVerification(stor)
 	srvBlockchain.RunProcessBlockChain()
-	srvBlockchain.RunBlockchainDBLoad()
+	//srvBlockchain.RunBlockchainDBLoad()
 
 	suite.server = httptest.NewServer(handlers.Router(handlers.NewHandlers(srvBlockchain, srvVerify)))
 }
@@ -78,8 +78,8 @@ func (suite *ServerTestSuite) TestCheckData() {
 		"text/plain", strings.NewReader("check data in blockchain"))
 	suite.Nil(err)
 	defer resp.Body.Close()
+	suite.Equal(http.StatusCreated, resp.StatusCode)
 
-	suite.Equal(http.StatusOK, resp.StatusCode)
 }
 
 func (suite *ServerTestSuite) TestStatusProcessCheckData() {
@@ -95,8 +95,8 @@ func (suite *ServerTestSuite) TestAddBlock() {
 		wg1 sync.WaitGroup
 	)
 
-	blocks := make([]*model.Block, 200)
-	respBlocks := make([]*model.Block, len(blocks))
+	blocks := make([]model.Block, 200)
+	respBlocks := make([]model.Block, len(blocks))
 
 	for i, _ := range blocks {
 		wg1.Add(1)
@@ -148,7 +148,7 @@ func (suite *ServerTestSuite) TestAddBlock() {
 	suite.Equal(http.StatusOK, http.StatusOK)
 }
 
-func NewBlock(msg string, key string) *model.Block {
+func NewBlock(msg string, key string) model.Block {
 	block := model.Block{}
 	// увеличить объём
 	block.Data = msg
@@ -158,7 +158,7 @@ func NewBlock(msg string, key string) *model.Block {
 	block.Head.Merkley = hex.EncodeToString(hash[:])
 	block.Head.Hash = ""
 
-	return &block
+	return block
 }
 
 func TestServerSuite(t *testing.T) {

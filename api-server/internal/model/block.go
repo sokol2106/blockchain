@@ -8,16 +8,6 @@ type BlockHeader struct {
 }
 
 type Block struct {
-	Head BlockHeader `json:"status"`
-	Data string      `json:"queueID"`
-}
-
-type CheckDataBlock struct {
-	Block Block  `json:"block"`
-	Data  string `json:"data"`
-}
-
-type DataKey struct {
-	Key  string `json:"key"`
-	Data string `json:"queueID"`
+	Head BlockHeader `json:"head"`
+	Data string      `json:"data"`
 }

@@ -97,13 +97,6 @@ func (b *Blockchain) ReceiveBlock() (string, error) {
 	}
 }
 
-func (b *Blockchain) Close() error {
-	close(b.queueData)
-	close(b.rawBlockQueue)
-	close(b.blockChainQueue)
-	return b.storage.Close()
-}
-
 func (b *Blockchain) RunProcessBlockChain() {
 	go func() {
 		for {
@@ -146,4 +139,11 @@ func (b *Blockchain) RunBlockchainDBLoad() {
 			}
 		}
 	}()
+}
+
+func (b *Blockchain) Close() error {
+	close(b.queueData)
+	close(b.rawBlockQueue)
+	close(b.blockChainQueue)
+	return b.storage.Close()
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/go-chi/chi/v5"
 	"github.com/ivan/blockchain/api-server/internal/middleware"
+	"github.com/ivan/blockchain/api-server/internal/model"
 	"github.com/ivan/blockchain/api-server/internal/service"
 	"io"
 	"net/http"
@@ -55,40 +56,50 @@ func (h *Handlers) GetDataBlockchain(res http.ResponseWriter, req *http.Request)
 	res.Write([]byte(data))
 }
 
-func (h *Handlers) CheckData(res http.ResponseWriter, req *http.Request) {
+func (h *Handlers) AddCheckData(res http.ResponseWriter, req *http.Request) {
 	_, cancel := context.WithCancel(req.Context())
 	defer cancel()
-
 	key := chi.URLParam(req, "key")
-	res.Header().Set("Location", key)
-	res.WriteHeader(http.StatusOK)
 
-}
-
-func (h *Handlers) StatusProcessCheckData(res http.ResponseWriter, req *http.Request) {
-	_, cancel := context.WithCancel(req.Context())
-	defer cancel()
-
-	type StatusResponse struct {
-		Status  string `json:"status"`
-		QueueID string `json:"queueID"`
+	body, err := io.ReadAll(req.Body)
+	defer req.Body.Close()
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
-	sts := StatusResponse{
-		Status: "INVALID",
+	type result struct {
+		QueueId string `json:"queueId"`
 	}
 
-	sts.QueueID = chi.URLParam(req, "queue_id")
+	strResult := result{}
+	strResult.QueueId, err = h.srvVerify.AddData(key, string(body))
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
-	jsonData, err := json.Marshal(sts)
+	bodyResult, err := json.Marshal(strResult)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusCreated)
+	res.Write(bodyResult)
+}
+
+func (h *Handlers) StatusProcessCheckData(res http.ResponseWriter, req *http.Request) {
+	_, cancel := context.WithCancel(req.Context())
+	defer cancel()
+
+	queueID := chi.URLParam(req, "queue_id")
+	status := h.srvVerify.StatusProcess(queueID)
+
+	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusOK)
-	res.Write(jsonData)
+	res.Write([]byte(status.String()))
 }
 
 func (h *Handlers) AddBlock(res http.ResponseWriter, req *http.Request) {
@@ -129,11 +140,44 @@ func (h *Handlers) GetBlock(res http.ResponseWriter, req *http.Request) {
 }
 
 func (h *Handlers) GetCheckDataBlock(res http.ResponseWriter, req *http.Request) {
+	blockVrf, err := h.srvVerify.ReceiveDataHandelr()
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte(blockVrf))
 }
 
 func (h *Handlers) SetStatusProcessCheckData(res http.ResponseWriter, req *http.Request) {
+	type queueIdStatus struct {
+		QueueId string       `json:"queueId"`
+		Status  model.Status `json:"status"`
+	}
 
+	body, err := io.ReadAll(req.Body)
+	defer req.Body.Close()
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	strResult := queueIdStatus{}
+	err = json.Unmarshal(body, &strResult)
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	h.srvVerify.SetStatus(strResult.QueueId, strResult.Status)
+	res.WriteHeader(http.StatusOK)
 }
 
 func Router(handler *Handlers) chi.Router {
@@ -146,18 +190,18 @@ func Router(handler *Handlers) chi.Router {
 	// router
 
 	// приходит внешне
-	router.Post("/api/data", http.HandlerFunc(handler.AddDataBlockchain))                 // новые данные для сохранения
-	router.Post("/api/check/{key}", http.HandlerFunc(handler.CheckData))                  // ключ + данные для проверки подлинности
-	router.Get("/api/check/{queue_id}", http.HandlerFunc(handler.StatusProcessCheckData)) // результат проверки подлинности
+	router.Post("/api/data", http.HandlerFunc(handler.AddDataBlockchain))                 // новые данные для сохранения +
+	router.Post("/api/check/{key}", http.HandlerFunc(handler.AddCheckData))               // ключ + данные для проверки подлинности +
+	router.Get("/api/check/{queue_id}", http.HandlerFunc(handler.StatusProcessCheckData)) // результат проверки подлинности +
 
 	// приходит от второго сервиса
-	router.Get("/api/data", http.HandlerFunc(handler.GetDataBlockchain)) // данные для создания блока
+	router.Get("/api/data", http.HandlerFunc(handler.GetDataBlockchain)) // данные для создания блока +
 
-	router.Post("/api/block", http.HandlerFunc(handler.AddBlock)) // добавление сформированного блока
-	router.Get("/api/block", http.HandlerFunc(handler.GetBlock))  // запрос блока из цепи блокчейн
+	router.Post("/api/block", http.HandlerFunc(handler.AddBlock)) // добавление сформированного блока +
+	router.Get("/api/block", http.HandlerFunc(handler.GetBlock))  // запрос блока из цепи блокчейн +
 
-	router.Get("/api/block/check", http.HandlerFunc(handler.GetCheckDataBlock))          // запрос данных для проверки подлинности
-	router.Post("/api/block/check", http.HandlerFunc(handler.SetStatusProcessCheckData)) // отправка результата проверки
+	router.Get("/api/block/check", http.HandlerFunc(handler.GetCheckDataBlock))          // запрос данных для проверки подлинности +
+	router.Post("/api/block/check", http.HandlerFunc(handler.SetStatusProcessCheckData)) // отправка результата проверки +
 
 	return router
 }
