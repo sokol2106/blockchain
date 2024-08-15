@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/google/uuid"
+	"github.com/ivan/blockchain/api-server/internal/customerrors"
 	"github.com/ivan/blockchain/api-server/internal/model"
 	"log"
 	"sync"
@@ -41,11 +42,11 @@ func (v *Verification) AddData(key string, data string) (string, error) {
 func (v *Verification) RunProcessSearchBlock() {
 	rwmu := sync.RWMutex{}
 	go func() {
-		for {
-			objRawVrf, ok := <-v.queueRawData
-			if !ok {
-				break
-			}
+		for objRawVrf := range v.queueRawData {
+			//objRawVrf, ok := <-v.queueRawData
+			//	if !ok {
+			//		break
+			//	}
 
 			rwmu.Lock()
 			objRawVrf.Status = model.StatusProcessing
@@ -76,13 +77,20 @@ func (v *Verification) StatusProcess(queueID string) model.Status {
 
 }
 
-func (v *Verification) ReceiveDataHandelr() (string, error) {
-	data := <-v.queueDataBlock
-	jsonData, err := json.Marshal(*data)
-	if err != nil {
-		return "", err
+func (v *Verification) ReceiveDataHandler() (string, error) {
+	select {
+	case data, ok := <-v.queueDataBlock:
+		if !ok {
+			return "", customerrors.ErrNoDataToVerification
+		}
+		jsonData, err := json.Marshal(*data)
+		if err != nil {
+			return "", err
+		}
+		return string(jsonData), nil
+	default:
+		return "", customerrors.ErrNoDataToVerification
 	}
-	return string(jsonData), nil
 }
 
 func (v *Verification) SetStatus(queueId string, status model.Status) {

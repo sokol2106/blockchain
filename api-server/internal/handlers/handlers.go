@@ -3,11 +3,14 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/go-chi/chi/v5"
+	"github.com/ivan/blockchain/api-server/internal/customerrors"
 	"github.com/ivan/blockchain/api-server/internal/middleware"
 	"github.com/ivan/blockchain/api-server/internal/model"
 	"github.com/ivan/blockchain/api-server/internal/service"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -23,20 +26,30 @@ func NewHandlers(blch *service.Blockchain, vrf *service.Verification) *Handlers 
 	}
 }
 
+func (h *Handlers) handlerError(err error) int {
+	statusCode := http.StatusBadRequest
+	if errors.Is(err, customerrors.ErrNoDataToVerification) {
+		statusCode = http.StatusNoContent
+	}
+
+	log.Printf("error handling request: %v, status: %d", err, statusCode)
+	return statusCode
+}
+
 func (h *Handlers) AddDataBlockchain(res http.ResponseWriter, req *http.Request) {
 	handlerStatus := http.StatusCreated
 	body, err := io.ReadAll(req.Body)
 	defer req.Body.Close()
 
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
 	result, err := h.srvBlockchain.AddData(string(body))
 
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
@@ -48,7 +61,7 @@ func (h *Handlers) AddDataBlockchain(res http.ResponseWriter, req *http.Request)
 func (h *Handlers) GetDataBlockchain(res http.ResponseWriter, req *http.Request) {
 	data, err := h.srvBlockchain.ReceiveData()
 	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 	res.Header().Set("Content-Type", "application/json")
@@ -64,7 +77,7 @@ func (h *Handlers) AddCheckData(res http.ResponseWriter, req *http.Request) {
 	body, err := io.ReadAll(req.Body)
 	defer req.Body.Close()
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
@@ -75,13 +88,13 @@ func (h *Handlers) AddCheckData(res http.ResponseWriter, req *http.Request) {
 	strResult := result{}
 	strResult.QueueId, err = h.srvVerify.AddData(key, string(body))
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
 	bodyResult, err := json.Marshal(strResult)
 	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
@@ -108,14 +121,14 @@ func (h *Handlers) AddBlock(res http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
 	err = h.srvBlockchain.AddBlock(string(body))
 
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
@@ -125,12 +138,12 @@ func (h *Handlers) AddBlock(res http.ResponseWriter, req *http.Request) {
 func (h *Handlers) GetBlock(res http.ResponseWriter, req *http.Request) {
 	block, err := h.srvBlockchain.ReceiveBlock()
 	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
@@ -140,14 +153,14 @@ func (h *Handlers) GetBlock(res http.ResponseWriter, req *http.Request) {
 }
 
 func (h *Handlers) GetCheckDataBlock(res http.ResponseWriter, req *http.Request) {
-	blockVrf, err := h.srvVerify.ReceiveDataHandelr()
+	blockVrf, err := h.srvVerify.ReceiveDataHandler()
 	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 

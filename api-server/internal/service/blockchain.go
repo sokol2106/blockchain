@@ -99,13 +99,7 @@ func (b *Blockchain) ReceiveBlock() (string, error) {
 
 func (b *Blockchain) RunProcessBlockChain() {
 	go func() {
-		for {
-			// Получаем не обработанный блок
-			rawBlock, ok := <-b.rawBlockQueue
-			if !ok {
-				break
-			}
-
+		for rawBlock := range b.rawBlockQueue {
 			rawHead, err := json.Marshal(rawBlock.Head)
 			if err != nil {
 				log.Printf("error marshal (Run Blockchain): %s", err)
@@ -118,6 +112,7 @@ func (b *Blockchain) RunProcessBlockChain() {
 			prevHash := sha256.Sum256([]byte(newHash))
 			rawBlock.Head.Hash = hex.EncodeToString(prevHash[:])
 
+			log.Printf("ProcessBlockChain %s : DATA : %s", b.prevBlock.Head.Hash, b.prevBlock.Data)
 			b.blockChainQueue <- b.prevBlock
 			b.prevBlock = rawBlock
 		}
@@ -126,16 +121,11 @@ func (b *Blockchain) RunProcessBlockChain() {
 
 func (b *Blockchain) RunBlockchainDBLoad() {
 	go func() {
-		for {
-			rawBlock, ok := <-b.blockChainQueue
-			if !ok {
-				break
-			}
-
+		for rawBlock := range b.blockChainQueue {
+			log.Printf("BlockchainDBLoad %s : DATA : %s", rawBlock.Head.Hash, rawBlock.Data)
 			err := b.storage.AddBlock(rawBlock)
 			if err != nil {
 				log.Printf("error Load DB : %s", err)
-				break
 			}
 		}
 	}()

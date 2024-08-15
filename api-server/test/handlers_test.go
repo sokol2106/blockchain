@@ -10,7 +10,6 @@ import (
 	"github.com/ivan/blockchain/api-server/internal/storage"
 	"github.com/stretchr/testify/suite"
 	"io"
-	"log"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -128,16 +127,16 @@ func (suite *ServerTestSuite) TestAddBlock() {
 			err = json.Unmarshal(bodyGetData, &respBlocks[i])
 			suite.Nil(err)
 
-			prevHead, err := json.Marshal(respBlocks[i].Head)
-			suite.Nil(err)
+			//	prevHead, err := json.Marshal(respBlocks[i].Head)
+			//	suite.Nil(err)
 
-			prevHash := sha256.Sum256(prevHead)
+			//	prevHash := sha256.Sum256(prevHead)
 
-			log.Printf("!!!! KEY  %s !!!! Previous  %s !!!! CURREN Previous  %s",
-				respBlocks[i].Head.Key,
-				respBlocks[i].Head.Hash,
-				hex.EncodeToString(prevHash[:]),
-			)
+			//	log.Printf("!!!! KEY  %s !!!! Previous  %s !!!! CURREN Previous  %s",
+			//		respBlocks[i].Head.Key,
+			//		respBlocks[i].Head.Hash,
+			//		hex.EncodeToString(prevHash[:]),
+			//	)
 
 			suite.Nil(err)
 		}()
@@ -146,6 +145,68 @@ func (suite *ServerTestSuite) TestAddBlock() {
 	wg1.Wait()
 
 	suite.Equal(http.StatusOK, http.StatusOK)
+}
+
+func (suite *ServerTestSuite) TestVerification() {
+	resp, err := http.Post(suite.server.URL+"/api/check/12345678",
+		"text/plain", strings.NewReader("data for verification"))
+	suite.Nil(err)
+	defer resp.Body.Close()
+	suite.Equal(http.StatusCreated, resp.StatusCode)
+	bodyPost, err := io.ReadAll(resp.Body)
+	suite.Nil(err)
+
+	type result struct {
+		QueueId string `json:"queueId"`
+	}
+
+	queueId := result{}
+	err = json.Unmarshal(bodyPost, &queueId)
+	suite.Nil(err)
+
+	resp3, err := http.Get(suite.server.URL + "/api/check/" + queueId.QueueId)
+	suite.Nil(err)
+	suite.Equal(http.StatusOK, resp3.StatusCode)
+	defer resp3.Body.Close()
+
+	bodyGetData, err := io.ReadAll(resp3.Body)
+	suite.Nil(err)
+	suite.Equal(model.StatusCreated.String(), string(bodyGetData))
+
+	type queueIdStatus struct {
+		QueueId string       `json:"queueId"`
+		Status  model.Status `json:"status"`
+	}
+
+	reqStatus := queueIdStatus{
+		QueueId: queueId.QueueId,
+		Status:  model.StatusNotFound,
+	}
+
+	bodyReq, err := json.Marshal(reqStatus)
+	suite.Nil(err)
+
+	resp2, err := http.Post(suite.server.URL+"/api/block/check",
+		"application/json", strings.NewReader(string(bodyReq)))
+
+	suite.Nil(err)
+	resp2.Body.Close()
+	suite.Equal(http.StatusOK, resp2.StatusCode)
+
+	resp4, err := http.Get(suite.server.URL + "/api/check/" + queueId.QueueId)
+	suite.Nil(err)
+	suite.Equal(http.StatusOK, resp4.StatusCode)
+	defer resp4.Body.Close()
+
+	bodyGetData, err = io.ReadAll(resp4.Body)
+	suite.Nil(err)
+	suite.Equal(model.StatusNotFound.String(), string(bodyGetData))
+
+	resp5, err := http.Get(suite.server.URL + "/api/block/check")
+	suite.Nil(err)
+	suite.Equal(http.StatusNoContent, resp5.StatusCode)
+	defer resp4.Body.Close()
+
 }
 
 func NewBlock(msg string, key string) model.Block {

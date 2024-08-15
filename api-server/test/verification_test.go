@@ -50,7 +50,7 @@ func TestVerification(t *testing.T) {
 		status = vrf.StatusProcess(queueId)
 		require.Equal(t, model.StatusProcessing, status)
 
-		res, err := vrf.ReceiveDataHandelr()
+		res, err := vrf.ReceiveDataHandler()
 		require.NoError(t, err)
 
 		blockVrf := model.VerificationData{}
@@ -62,20 +62,30 @@ func TestVerification(t *testing.T) {
 
 		// Проверка что поток обработки данных не остановился
 
-		queueId, err = vrf.AddData(key, "hello word 2")
+		queueId2, err := vrf.AddData(key, "hello word 2")
 		require.NoError(t, err)
 
-		status = vrf.StatusProcess(queueId)
-		require.Equal(t, model.StatusProcessing, status)
+		endTime := time.Now().Add(10 * time.Second)
 
-		res, err = vrf.ReceiveDataHandelr()
+		for {
+			if time.Now().After(endTime) {
+				break
+			}
+
+			res, err = vrf.ReceiveDataHandler()
+			if err == nil {
+				break
+			}
+		}
+
 		require.NoError(t, err)
-
 		blockVrf = model.VerificationData{}
 		err = json.Unmarshal([]byte(res), &blockVrf)
 		require.NoError(t, err)
-		require.Equal(t, queueId, blockVrf.QueueId)
+		require.Equal(t, queueId2, blockVrf.QueueId)
 
+		status = vrf.StatusProcess(queueId2)
+		require.Equal(t, model.StatusProcessing, status)
 	})
 
 }

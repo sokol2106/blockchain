@@ -9,7 +9,6 @@ import (
 	"github.com/ivan/blockchain/api-server/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"log"
 	"testing"
 	"time"
 )
@@ -59,7 +58,7 @@ func TestRunBlockchain(t *testing.T) {
 			prevHash := sha256.Sum256([]byte(newDataHash))
 
 			assert.Equal(t, resultHash, hex.EncodeToString(prevHash[:]))
-			log.Printf(resultHash + " ----- " + hex.EncodeToString(prevHash[:]))
+			//log.Printf(resultHash + " ----- " + hex.EncodeToString(prevHash[:]))
 
 			currentBlock.Head.Hash = resultHash
 			prevBlock = currentBlock

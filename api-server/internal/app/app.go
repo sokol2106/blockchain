@@ -14,15 +14,20 @@ func Run(addServer string, cnfDataBase string) {
 	if err != nil {
 		log.Printf("Connect DB: %s", err)
 	} else {
-		err = stor.Migrations("file://migrations/postgresql")
+		err = stor.Migrations("file://../migrations/postgresql")
 		if err != nil {
 			log.Printf("Could not run migrations: %s", err)
 		}
 	}
+
 	srvBlockchain := service.NewBlockchain(stor)
 	srvBlockchain.RunProcessBlockChain()
 	srvBlockchain.RunBlockchainDBLoad()
-	srvVerify := service.NewVerification()
+	srvVerify := service.NewVerification(stor)
+	err = stor.PingContext()
+	if err == nil {
+		srvVerify.RunProcessSearchBlock()
+	}
 
 	ser := server.NewServer(handlers.Router(handlers.NewHandlers(srvBlockchain, srvVerify)), addServer)
 	err = ser.Start()
