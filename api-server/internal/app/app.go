@@ -21,12 +21,12 @@ func Run(addServer string, cnfDataBase string) {
 	}
 
 	srvBlockchain := service.NewBlockchain(stor)
-	srvBlockchain.RunProcessBlockChain()
-	srvBlockchain.RunBlockchainDBLoad()
+	srvBlockchain.StartBlockchainProcessing()
+	srvBlockchain.StartDBSync()
 	srvVerify := service.NewVerification(stor)
 	err = stor.PingContext()
 	if err == nil {
-		srvVerify.RunProcessSearchBlock()
+		srvVerify.StartBlockSearchProcess()
 	}
 
 	ser := server.NewServer(handlers.Router(handlers.NewHandlers(srvBlockchain, srvVerify)), addServer)

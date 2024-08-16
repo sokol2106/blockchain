@@ -15,7 +15,7 @@ func TestConnectPostgresql(t *testing.T) {
 		stor := storage.NewPostgresql("host=localhost port=5432 user=pia password=12345678 dbname=yandex sslmode=disable")
 		err := stor.Connect()
 		require.NoError(t, err)
-		defer stor.Close()
+		defer stor.Disconnect()
 
 		//err = stor.Migrations("file://../migrations/postgresql")
 		//require.NoError(t, err)
@@ -29,10 +29,10 @@ func TestConnectPostgresql(t *testing.T) {
 			Merkley: "99999999",
 		}}
 
-		err = stor.AddBlock(block)
+		err = stor.InsertBlock(block)
 		require.NoError(t, err)
 
-		block2, err := stor.GetBlock(context.Background(), key)
+		block2, err := stor.SelectBlock(context.Background(), key)
 		require.NoError(t, err)
 		require.Equal(t, block.Data, block2.Data)
 	})

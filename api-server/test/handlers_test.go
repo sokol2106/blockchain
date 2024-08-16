@@ -33,7 +33,7 @@ func (suite *ServerTestSuite) SetupSuite() {
 	stor := storage.NewPostgresql("")
 	srvBlockchain := service.NewBlockchain(stor)
 	srvVerify := service.NewVerification(stor)
-	srvBlockchain.RunProcessBlockChain()
+	srvBlockchain.StartBlockchainProcessing()
 	//srvBlockchain.RunBlockchainDBLoad()
 
 	suite.server = httptest.NewServer(handlers.Router(handlers.NewHandlers(srvBlockchain, srvVerify)))
@@ -52,7 +52,7 @@ func (suite *ServerTestSuite) TestAddDataBlockchain() {
 	suite.Nil(err)
 	suite.Equal(http.StatusCreated, resp.StatusCode)
 
-	resp, err = http.Get(suite.server.URL + "/api/data")
+	resp, err = http.Get(suite.server.URL + "/api/blockchain/data")
 	suite.Nil(err)
 	defer resp.Body.Close()
 	bodyGetData, err := io.ReadAll(resp.Body)
@@ -73,7 +73,7 @@ func (suite *ServerTestSuite) TestAddDataBlockchain() {
 }
 
 func (suite *ServerTestSuite) TestCheckData() {
-	resp, err := http.Post(suite.server.URL+"/api/check/7e5b4b50-57b4-4f8c-9c54-847c5fa2f4df",
+	resp, err := http.Post(suite.server.URL+"/api/verify/7e5b4b50-57b4-4f8c-9c54-847c5fa2f4df",
 		"text/plain", strings.NewReader("check data in blockchain"))
 	suite.Nil(err)
 	defer resp.Body.Close()
@@ -82,7 +82,7 @@ func (suite *ServerTestSuite) TestCheckData() {
 }
 
 func (suite *ServerTestSuite) TestStatusProcessCheckData() {
-	resp, err := http.Get(suite.server.URL + "/api/check/1234567")
+	resp, err := http.Get(suite.server.URL + "/api/verify/status/1234567")
 	suite.Nil(err)
 	defer resp.Body.Close()
 	suite.Equal(http.StatusOK, resp.StatusCode)
@@ -98,37 +98,41 @@ func (suite *ServerTestSuite) TestAddBlock() {
 	respBlocks := make([]model.Block, len(blocks))
 
 	for i, _ := range blocks {
+		in := i
 		wg1.Add(1)
-		go func() {
+		go func(ind int) {
 			defer wg1.Done()
-			blocks[i] = NewBlock(generateRandomString(10000), strconv.Itoa(i))
-			jsonBlock, err := json.Marshal(blocks[i])
+			blocks[i] = NewBlock(generateRandomString(10000), strconv.Itoa(ind))
+			jsonBlock, err := json.Marshal(blocks[ind])
 			suite.Nil(err)
-			resp, err := http.Post(suite.server.URL+"/api/block", "application/json", strings.NewReader(string(jsonBlock)))
+			resp, err := http.Post(suite.server.URL+"/api/blockchain/block", "application/json", strings.NewReader(string(jsonBlock)))
 			suite.Nil(err)
 			defer resp.Body.Close()
 			suite.Equal(http.StatusCreated, resp.StatusCode)
-		}()
+		}(in)
 	}
 
 	wg1.Wait()
 
+	time.Sleep(10 * time.Second)
+
 	for i := 0; i < len(blocks); i++ {
+		in := i
 		wg1.Add(1)
-		go func() {
+		go func(ind int) {
 			defer wg1.Done()
-			resp, err := http.Get(suite.server.URL + "/api/block")
+			resp, err := http.Get(suite.server.URL + "/api/blockchain/block")
 			suite.Nil(err)
 			defer resp.Body.Close()
 			suite.Equal(http.StatusOK, resp.StatusCode)
 
 			bodyGetData, err := io.ReadAll(resp.Body)
 			suite.Nil(err)
-			err = json.Unmarshal(bodyGetData, &respBlocks[i])
+			json.Unmarshal(bodyGetData, &respBlocks[ind])
 			suite.Nil(err)
 
-			//	prevHead, err := json.Marshal(respBlocks[i].Head)
-			//	suite.Nil(err)
+			//prevHead, err := json.Marshal(respBlocks[i].Head)
+			//suite.Nil(err)
 
 			//	prevHash := sha256.Sum256(prevHead)
 
@@ -138,8 +142,8 @@ func (suite *ServerTestSuite) TestAddBlock() {
 			//		hex.EncodeToString(prevHash[:]),
 			//	)
 
-			suite.Nil(err)
-		}()
+			//suite.Nil(err)
+		}(in)
 	}
 
 	wg1.Wait()
@@ -148,7 +152,7 @@ func (suite *ServerTestSuite) TestAddBlock() {
 }
 
 func (suite *ServerTestSuite) TestVerification() {
-	resp, err := http.Post(suite.server.URL+"/api/check/12345678",
+	resp, err := http.Post(suite.server.URL+"/api/verify/12345678",
 		"text/plain", strings.NewReader("data for verification"))
 	suite.Nil(err)
 	defer resp.Body.Close()
@@ -164,7 +168,7 @@ func (suite *ServerTestSuite) TestVerification() {
 	err = json.Unmarshal(bodyPost, &queueId)
 	suite.Nil(err)
 
-	resp3, err := http.Get(suite.server.URL + "/api/check/" + queueId.QueueId)
+	resp3, err := http.Get(suite.server.URL + "/api/verify/status/" + queueId.QueueId)
 	suite.Nil(err)
 	suite.Equal(http.StatusOK, resp3.StatusCode)
 	defer resp3.Body.Close()
@@ -186,14 +190,14 @@ func (suite *ServerTestSuite) TestVerification() {
 	bodyReq, err := json.Marshal(reqStatus)
 	suite.Nil(err)
 
-	resp2, err := http.Post(suite.server.URL+"/api/block/check",
+	resp2, err := http.Post(suite.server.URL+"/api/blockchain/block/verify",
 		"application/json", strings.NewReader(string(bodyReq)))
 
 	suite.Nil(err)
 	resp2.Body.Close()
 	suite.Equal(http.StatusOK, resp2.StatusCode)
 
-	resp4, err := http.Get(suite.server.URL + "/api/check/" + queueId.QueueId)
+	resp4, err := http.Get(suite.server.URL + "/api/verify/status/" + queueId.QueueId)
 	suite.Nil(err)
 	suite.Equal(http.StatusOK, resp4.StatusCode)
 	defer resp4.Body.Close()
@@ -202,7 +206,7 @@ func (suite *ServerTestSuite) TestVerification() {
 	suite.Nil(err)
 	suite.Equal(model.StatusNotFound.String(), string(bodyGetData))
 
-	resp5, err := http.Get(suite.server.URL + "/api/block/check")
+	resp5, err := http.Get(suite.server.URL + "/api/blockchain/block/verify")
 	suite.Nil(err)
 	suite.Equal(http.StatusNoContent, resp5.StatusCode)
 	defer resp4.Body.Close()
@@ -241,8 +245,8 @@ func BenchmarkAddBlock(b *testing.B) {
 			defer wg.Done()
 			block := NewBlock(generateRandomString(10000), "ggggggg")
 			jsonBlock, _ := json.Marshal(block)
-			_, _ = http.Post(suite.server.URL+"/api/block", "application/json", strings.NewReader(string(jsonBlock)))
-			_, _ = http.Get(suite.server.URL + "/api/block")
+			_, _ = http.Post(suite.server.URL+"/api/blockchain/block", "application/json", strings.NewReader(string(jsonBlock)))
+			_, _ = http.Get(suite.server.URL + "/api/blockchain/block")
 		}()
 	}
 

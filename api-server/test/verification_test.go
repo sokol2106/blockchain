@@ -34,23 +34,23 @@ func TestVerification(t *testing.T) {
 			Merkley: "99999999",
 		}}
 
-		err = stor.AddBlock(block)
+		err = stor.InsertBlock(block)
 		require.NoError(t, err)
 
 		queueId, err := vrf.AddData(key, "hello word")
 		require.NoError(t, err)
 
-		status := vrf.StatusProcess(queueId)
+		status := vrf.GetProcessStatus(queueId)
 		require.Equal(t, model.StatusCreated, status)
 
-		vrf.RunProcessSearchBlock()
+		vrf.StartBlockSearchProcess()
 
 		time.Sleep(1 * time.Second)
 
-		status = vrf.StatusProcess(queueId)
+		status = vrf.GetProcessStatus(queueId)
 		require.Equal(t, model.StatusProcessing, status)
 
-		res, err := vrf.ReceiveDataHandler()
+		res, err := vrf.RetrieveProcessedData()
 		require.NoError(t, err)
 
 		blockVrf := model.VerificationData{}
@@ -72,7 +72,7 @@ func TestVerification(t *testing.T) {
 				break
 			}
 
-			res, err = vrf.ReceiveDataHandler()
+			res, err = vrf.RetrieveProcessedData()
 			if err == nil {
 				break
 			}
@@ -84,7 +84,7 @@ func TestVerification(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, queueId2, blockVrf.QueueId)
 
-		status = vrf.StatusProcess(queueId2)
+		status = vrf.GetProcessStatus(queueId2)
 		require.Equal(t, model.StatusProcessing, status)
 	})
 

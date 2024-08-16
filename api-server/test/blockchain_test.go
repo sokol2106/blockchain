@@ -18,7 +18,7 @@ func TestRunBlockchain(t *testing.T) {
 	pgsql := storage.NewPostgresql("")
 	blch := service.NewBlockchain(pgsql)
 	defer blch.Close()
-	blch.RunProcessBlockChain()
+	blch.StartBlockchainProcessing()
 	//blch.RunBlockchainDBLoad()
 
 	count := 100
@@ -29,7 +29,7 @@ func TestRunBlockchain(t *testing.T) {
 				rawBlock := NewBlock(generateRandomString(1000000), generateRandomString(20))
 				tBlock, err := json.Marshal(rawBlock)
 				require.NoError(t, err)
-				err = blch.AddBlock(string(tBlock))
+				err = blch.AddNewBlock(string(tBlock))
 				require.NoError(t, err)
 			}()
 		}

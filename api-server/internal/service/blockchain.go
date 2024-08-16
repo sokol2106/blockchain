@@ -13,9 +13,9 @@ import (
 )
 
 type StorageBlockchain interface {
-	AddBlock(model.Block) error
-	GetBlock(context.Context, string) (*model.Block, error)
-	Close() error
+	InsertBlock(model.Block) error
+	SelectBlock(context.Context, string) (*model.Block, error)
+	Disconnect() error
 }
 
 type KeyData struct {
@@ -24,20 +24,20 @@ type KeyData struct {
 }
 
 type Blockchain struct {
-	queueData       chan KeyData
-	rawBlockQueue   chan model.Block
-	blockChainQueue chan model.Block
-	prevBlock       model.Block
-	storage         StorageBlockchain
+	dataQueue       chan KeyData      // Очередь для поступающих данных
+	rawBlockQueue   chan model.Block  // Очередь для необработанных блоков (готовящихся к добавлению)
+	blockchainQueue chan model.Block  // Очередь для подтвержденных блоков в блокчейне
+	previousBlock   model.Block       // Ссылка на предыдущий блок в цепи
+	storage         StorageBlockchain // Хранилище блокчейна
 }
 
 func NewBlockchain(stor StorageBlockchain) *Blockchain {
 
 	return &Blockchain{
-		queueData:       make(chan KeyData, 100000),
+		dataQueue:       make(chan KeyData, 100000),
 		rawBlockQueue:   make(chan model.Block, 100000),
-		blockChainQueue: make(chan model.Block, 100000),
-		prevBlock: model.Block{
+		blockchainQueue: make(chan model.Block, 100000),
+		previousBlock: model.Block{
 			Data: "load block",
 			Head: model.BlockHeader{
 				Hash:    "6c818bd1063cb91ebd803fc894c01a49fd5fecaa4a86693c7c02b8296b9d45ee",
@@ -50,9 +50,9 @@ func NewBlockchain(stor StorageBlockchain) *Blockchain {
 	}
 }
 
-func (b *Blockchain) AddData(data string) (string, error) {
+func (b *Blockchain) StoreData(data string) (string, error) {
 	key := uuid.New()
-	b.queueData <- KeyData{Key: key.String(), Data: data}
+	b.dataQueue <- KeyData{Key: key.String(), Data: data}
 	jsonData, err := json.Marshal(KeyData{Key: key.String()})
 	if err != nil {
 		return "", err
@@ -61,7 +61,7 @@ func (b *Blockchain) AddData(data string) (string, error) {
 }
 
 func (b *Blockchain) ReceiveData() (string, error) {
-	keyData := <-b.queueData
+	keyData := <-b.dataQueue
 	jsonData, err := json.Marshal(keyData)
 	if err != nil {
 		return "", err
@@ -69,7 +69,7 @@ func (b *Blockchain) ReceiveData() (string, error) {
 	return string(jsonData), nil
 }
 
-func (b *Blockchain) AddBlock(blockStr string) error {
+func (b *Blockchain) AddNewBlock(blockStr string) error {
 	block := model.Block{}
 	err := json.Unmarshal([]byte(blockStr), &block)
 	if err != nil {
@@ -86,7 +86,7 @@ func (b *Blockchain) AddBlock(blockStr string) error {
 
 func (b *Blockchain) ReceiveBlock() (string, error) {
 	select {
-	case block := <-b.blockChainQueue:
+	case block := <-b.blockchainQueue:
 		jsonData, err := json.Marshal(block)
 		if err != nil {
 			return "", err
@@ -97,7 +97,7 @@ func (b *Blockchain) ReceiveBlock() (string, error) {
 	}
 }
 
-func (b *Blockchain) RunProcessBlockChain() {
+func (b *Blockchain) StartBlockchainProcessing() {
 	go func() {
 		for rawBlock := range b.rawBlockQueue {
 			rawHead, err := json.Marshal(rawBlock.Head)
@@ -108,22 +108,22 @@ func (b *Blockchain) RunProcessBlockChain() {
 
 			currentBlockHash := sha256.Sum256(rawHead)
 
-			newHash := hex.EncodeToString(currentBlockHash[:]) + b.prevBlock.Head.Hash
+			newHash := hex.EncodeToString(currentBlockHash[:]) + b.previousBlock.Head.Hash
 			prevHash := sha256.Sum256([]byte(newHash))
 			rawBlock.Head.Hash = hex.EncodeToString(prevHash[:])
 
-			log.Printf("ProcessBlockChain %s : DATA : %s", b.prevBlock.Head.Hash, b.prevBlock.Data)
-			b.blockChainQueue <- b.prevBlock
-			b.prevBlock = rawBlock
+			//log.Printf("ProcessBlockChain %s : DATA : %s", b.previousBlock.Head.Hash, b.previousBlock.Data)
+			b.blockchainQueue <- b.previousBlock
+			b.previousBlock = rawBlock
 		}
 	}()
 }
 
-func (b *Blockchain) RunBlockchainDBLoad() {
+func (b *Blockchain) StartDBSync() {
 	go func() {
-		for rawBlock := range b.blockChainQueue {
-			log.Printf("BlockchainDBLoad %s : DATA : %s", rawBlock.Head.Hash, rawBlock.Data)
-			err := b.storage.AddBlock(rawBlock)
+		for rawBlock := range b.blockchainQueue {
+			//log.Printf("BlockchainDBLoad %s : DATA : %s", rawBlock.Head.Hash, rawBlock.Data)
+			err := b.storage.InsertBlock(rawBlock)
 			if err != nil {
 				log.Printf("error Load DB : %s", err)
 			}
@@ -132,8 +132,8 @@ func (b *Blockchain) RunBlockchainDBLoad() {
 }
 
 func (b *Blockchain) Close() error {
-	close(b.queueData)
+	close(b.dataQueue)
 	close(b.rawBlockQueue)
-	close(b.blockChainQueue)
-	return b.storage.Close()
+	close(b.blockchainQueue)
+	return b.storage.Disconnect()
 }

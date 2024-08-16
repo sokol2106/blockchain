@@ -62,7 +62,7 @@ func (pstg *PostgreSQL) Migrations(pathFiles string) error {
 	return nil
 }
 
-func (pstg *PostgreSQL) Close() error {
+func (pstg *PostgreSQL) Disconnect() error {
 	if pstg.db != nil {
 		return pstg.db.Close()
 	}
@@ -75,7 +75,7 @@ func (pstg *PostgreSQL) PingContext() error {
 	return pstg.db.PingContext(ctx)
 }
 
-func (pstg *PostgreSQL) AddBlock(block model.Block) error {
+func (pstg *PostgreSQL) InsertBlock(block model.Block) error {
 	var err error = nil
 	_, err = pstg.db.ExecContext(context.Background(), "INSERT INTO public.blockchain (key, hash, merkley, noce, data) "+
 		"VALUES ($1, $2, $3, $4, $5)",
@@ -89,7 +89,7 @@ func (pstg *PostgreSQL) AddBlock(block model.Block) error {
 	return err
 }
 
-func (pstg *PostgreSQL) GetBlock(ctx context.Context, key string) (*model.Block, error) {
+func (pstg *PostgreSQL) SelectBlock(ctx context.Context, key string) (*model.Block, error) {
 	var (
 		err     error = nil
 		hash    string
