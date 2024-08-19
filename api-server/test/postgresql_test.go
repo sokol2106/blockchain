@@ -25,7 +25,7 @@ func TestConnectPostgresql(t *testing.T) {
 		block := model.Block{Data: generateRandomString(10000), Head: model.BlockHeader{
 			Hash:    "11111111",
 			Key:     key,
-			Noce:    "000",
+			Nonce:   "000",
 			Merkley: "99999999",
 		}}
 

@@ -77,12 +77,12 @@ func (pstg *PostgreSQL) PingContext() error {
 
 func (pstg *PostgreSQL) InsertBlock(block model.Block) error {
 	var err error = nil
-	_, err = pstg.db.ExecContext(context.Background(), "INSERT INTO public.blockchain (key, hash, merkley, noce, data) "+
+	_, err = pstg.db.ExecContext(context.Background(), "INSERT INTO public.blockchain (key, hash, merkley, nonce, data) "+
 		"VALUES ($1, $2, $3, $4, $5)",
 		block.Head.Key,
 		block.Head.Hash,
 		block.Head.Merkley,
-		block.Head.Noce,
+		block.Head.Nonce,
 		block.Data,
 	)
 
@@ -94,14 +94,14 @@ func (pstg *PostgreSQL) SelectBlock(ctx context.Context, key string) (*model.Blo
 		err     error = nil
 		hash    string
 		merkley string
-		noce    string
+		nonce   string
 		data    string
 	)
 	ctxDB, cancelDB := context.WithCancel(ctx)
 	defer cancelDB()
 
-	row := pstg.db.QueryRowContext(ctxDB, "SELECT hash, merkley, noce, data FROM public.blockchain WHERE key=$1", key)
-	err = row.Scan(&hash, &merkley, &noce, &data)
+	row := pstg.db.QueryRowContext(ctxDB, "SELECT hash, merkley, nonce, data FROM public.blockchain WHERE key=$1", key)
+	err = row.Scan(&hash, &merkley, &nonce, &data)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (pstg *PostgreSQL) SelectBlock(ctx context.Context, key string) (*model.Blo
 	return &model.Block{Data: data, Head: model.BlockHeader{
 		Hash:    hash,
 		Merkley: merkley,
-		Noce:    noce,
+		Nonce:   nonce,
 		Key:     key,
 	}}, err
 }
@@ -119,15 +119,15 @@ func (pstg *PostgreSQL) SelectLastBlock(ctx context.Context) (*model.Block, erro
 		err     error = nil
 		hash    string
 		merkley string
-		noce    string
+		nonce   string
 		data    string
 		key     string
 	)
 	ctxDB, cancelDB := context.WithCancel(ctx)
 	defer cancelDB()
 
-	row := pstg.db.QueryRowContext(ctxDB, "SELECT hash, merkley, noce, data, key FROM public.blockchain ORDER BY date DESC LIMIT 1")
-	err = row.Scan(&hash, &merkley, &noce, &data, &key)
+	row := pstg.db.QueryRowContext(ctxDB, "SELECT hash, merkley, nonce, data, key FROM public.blockchain ORDER BY date DESC LIMIT 1")
+	err = row.Scan(&hash, &merkley, &nonce, &data, &key)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (pstg *PostgreSQL) SelectLastBlock(ctx context.Context) (*model.Block, erro
 		Head: model.BlockHeader{
 			Hash:    hash,
 			Merkley: merkley,
-			Noce:    noce,
+			Nonce:   nonce,
 			Key:     key,
 		}}, err
 

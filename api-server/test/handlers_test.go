@@ -221,7 +221,7 @@ func NewBlock(msg string, key string) model.Block {
 	block := model.Block{}
 	// увеличить объём
 	block.Data = msg
-	block.Head.Noce = "12345678"
+	block.Head.Nonce = "12345678"
 	block.Head.Key = key
 	hash := sha256.Sum256([]byte(block.Data))
 	block.Head.Merkley = hex.EncodeToString(hash[:])

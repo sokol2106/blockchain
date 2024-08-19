@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS public.blockchain
     key uuid NOT NULL,
     hash text COLLATE pg_catalog."default" NOT NULL,
     merkley text COLLATE pg_catalog."default" NOT NULL,
-    noce text COLLATE pg_catalog."default" NOT NULL,
+    nonce text COLLATE pg_catalog."default" NOT NULL,
     data text COLLATE pg_catalog."default" NOT NULL,
     date timestamp without time zone NOT NULL DEFAULT now(),
     CONSTRAINT blockchain_pk PRIMARY KEY (key)

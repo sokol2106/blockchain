@@ -4,7 +4,7 @@ type BlockHeader struct {
 	Hash    string `json:"hash"`
 	Merkley string `json:"merkley"`
 	Key     string `json:"key"`
-	Noce    string `json:"noce"`
+	Nonce   string `json:"nonce"`
 }
 
 type Block struct {

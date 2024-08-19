@@ -39,7 +39,7 @@ func NewBlockchain(stor StorageBlockchain) *Blockchain {
 			Hash:    "6c818bd1063cb91ebd803fc894c01a49fd5fecaa4a86693c7c02b8296b9d45ee",
 			Merkley: "4rfvbgt56yhn",
 			Key:     "12345678",
-			Noce:    "12345678",
+			Nonce:   "12345678",
 		},
 	}
 
@@ -73,12 +73,16 @@ func (b *Blockchain) StoreData(data string) (string, error) {
 }
 
 func (b *Blockchain) ReceiveData() (string, error) {
-	keyData := <-b.dataQueue
-	jsonData, err := json.Marshal(keyData)
-	if err != nil {
-		return "", err
+	select {
+	case keyData := <-b.dataQueue:
+		jsonData, err := json.Marshal(keyData)
+		if err != nil {
+			return "", err
+		}
+		return string(jsonData), nil
+	default:
+		return "", errors.New("block queue is empty")
 	}
-	return string(jsonData), nil
 }
 
 func (b *Blockchain) AddNewBlock(blockStr string) error {

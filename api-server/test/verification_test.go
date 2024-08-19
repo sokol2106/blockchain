@@ -30,7 +30,7 @@ func TestVerification(t *testing.T) {
 		block := model.Block{Data: "Hello word", Head: model.BlockHeader{
 			Hash:    "11111111",
 			Key:     key,
-			Noce:    "000",
+			Nonce:   "000",
 			Merkley: "99999999",
 		}}
 

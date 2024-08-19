@@ -10,7 +10,6 @@ import (
 	"github.com/ivan/blockchain/api-server/internal/model"
 	"github.com/ivan/blockchain/api-server/internal/service"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -32,7 +31,6 @@ func (h *Handlers) handlerError(err error) int {
 		statusCode = http.StatusNoContent
 	}
 
-	log.Printf("error handling request: %v, status: %d", err, statusCode)
 	return statusCode
 }
 
