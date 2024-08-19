@@ -113,3 +113,32 @@ func (pstg *PostgreSQL) SelectBlock(ctx context.Context, key string) (*model.Blo
 		Key:     key,
 	}}, err
 }
+
+func (pstg *PostgreSQL) SelectLastBlock(ctx context.Context) (*model.Block, error) {
+	var (
+		err     error = nil
+		hash    string
+		merkley string
+		noce    string
+		data    string
+		key     string
+	)
+	ctxDB, cancelDB := context.WithCancel(ctx)
+	defer cancelDB()
+
+	row := pstg.db.QueryRowContext(ctxDB, "SELECT hash, merkley, noce, data, key FROM public.blockchain ORDER BY date DESC LIMIT 1")
+	err = row.Scan(&hash, &merkley, &noce, &data, &key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.Block{
+		Data: data,
+		Head: model.BlockHeader{
+			Hash:    hash,
+			Merkley: merkley,
+			Noce:    noce,
+			Key:     key,
+		}}, err
+
+}

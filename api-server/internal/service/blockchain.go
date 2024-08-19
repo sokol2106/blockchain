@@ -15,6 +15,7 @@ import (
 type StorageBlockchain interface {
 	InsertBlock(model.Block) error
 	SelectBlock(context.Context, string) (*model.Block, error)
+	SelectLastBlock(context.Context) (*model.Block, error)
 	Disconnect() error
 }
 
@@ -32,21 +33,32 @@ type Blockchain struct {
 }
 
 func NewBlockchain(stor StorageBlockchain) *Blockchain {
+	prevBlock := &model.Block{
+		Data: "start block",
+		Head: model.BlockHeader{
+			Hash:    "6c818bd1063cb91ebd803fc894c01a49fd5fecaa4a86693c7c02b8296b9d45ee",
+			Merkley: "4rfvbgt56yhn",
+			Key:     "12345678",
+			Noce:    "12345678",
+		},
+	}
+
+	if stor != nil {
+		prevBlock2, err := stor.SelectLastBlock(context.Background())
+		if err != nil {
+			log.Printf("error load start block: %s", err)
+		} else {
+			prevBlock = prevBlock2
+		}
+
+	}
 
 	return &Blockchain{
 		dataQueue:       make(chan KeyData, 100000),
 		rawBlockQueue:   make(chan model.Block, 100000),
 		blockchainQueue: make(chan model.Block, 100000),
-		previousBlock: model.Block{
-			Data: "load block",
-			Head: model.BlockHeader{
-				Hash:    "6c818bd1063cb91ebd803fc894c01a49fd5fecaa4a86693c7c02b8296b9d45ee",
-				Merkley: "4rfvbgt56yhn",
-				Key:     "12345678",
-				Noce:    "12345678",
-			},
-		},
-		storage: stor,
+		previousBlock:   *prevBlock,
+		storage:         stor,
 	}
 }
 

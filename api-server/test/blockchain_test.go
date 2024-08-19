@@ -14,16 +14,19 @@ import (
 )
 
 func TestRunBlockchain(t *testing.T) {
-
-	pgsql := storage.NewPostgresql("")
-	blch := service.NewBlockchain(pgsql)
-	defer blch.Close()
-	blch.StartBlockchainProcessing()
-	//blch.RunBlockchainDBLoad()
-
+	stor := storage.NewPostgresql("host=localhost port=5432 user=pia password=12345678 dbname=yandex sslmode=disable")
 	count := 100
 
 	t.Run("Test Run blockchain", func(t *testing.T) {
+		err := stor.Connect()
+		require.NoError(t, err)
+		err = stor.PingContext()
+		require.NoError(t, err)
+
+		blch := service.NewBlockchain(stor)
+		defer blch.Close()
+		blch.StartBlockchainProcessing()
+
 		for range count {
 			go func() {
 				rawBlock := NewBlock(generateRandomString(1000000), generateRandomString(20))

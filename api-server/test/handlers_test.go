@@ -30,7 +30,11 @@ type ServerTestSuite struct {
 }
 
 func (suite *ServerTestSuite) SetupSuite() {
-	stor := storage.NewPostgresql("")
+	stor := storage.NewPostgresql("host=localhost port=5432 user=pia password=12345678 dbname=yandex sslmode=disable")
+	err := stor.Connect()
+	suite.Nil(err)
+	err = stor.PingContext()
+	suite.Nil(err)
 	srvBlockchain := service.NewBlockchain(stor)
 	srvVerify := service.NewVerification(stor)
 	srvBlockchain.StartBlockchainProcessing()
