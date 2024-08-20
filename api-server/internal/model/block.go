@@ -4,14 +4,10 @@ type BlockHeader struct {
 	Hash    string `json:"hash"`
 	Merkley string `json:"merkley"`
 	Key     string `json:"key"`
+	Nonce   string `json:"nonce"`
 }
 
 type Block struct {
-	Head BlockHeader `json:"status"`
-	Data string      `json:"queueID"`
-}
-
-type CheckDataBlock struct {
-	Block Block  `json:"block"`
-	Data  string `json:"data"`
+	Head BlockHeader `json:"head"`
+	Data string      `json:"data"`
 }

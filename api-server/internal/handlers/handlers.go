@@ -3,8 +3,11 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/go-chi/chi/v5"
+	"github.com/ivan/blockchain/api-server/internal/customerrors"
 	"github.com/ivan/blockchain/api-server/internal/middleware"
+	"github.com/ivan/blockchain/api-server/internal/model"
 	"github.com/ivan/blockchain/api-server/internal/service"
 	"io"
 	"net/http"
@@ -22,20 +25,29 @@ func NewHandlers(blch *service.Blockchain, vrf *service.Verification) *Handlers 
 	}
 }
 
-func (h *Handlers) AddDataBlockchain(res http.ResponseWriter, req *http.Request) {
+func (h *Handlers) handlerError(err error) int {
+	statusCode := http.StatusBadRequest
+	if errors.Is(err, customerrors.ErrNoDataToVerification) {
+		statusCode = http.StatusNoContent
+	}
+
+	return statusCode
+}
+
+func (h *Handlers) CreateBlockchainData(res http.ResponseWriter, req *http.Request) {
 	handlerStatus := http.StatusCreated
 	body, err := io.ReadAll(req.Body)
 	defer req.Body.Close()
 
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
-	result, err := h.srvBlockchain.AddData(string(body))
+	result, err := h.srvBlockchain.StoreData(string(body))
 
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
@@ -44,10 +56,10 @@ func (h *Handlers) AddDataBlockchain(res http.ResponseWriter, req *http.Request)
 	res.Write([]byte(result))
 }
 
-func (h *Handlers) GetDataBlockchain(res http.ResponseWriter, req *http.Request) {
+func (h *Handlers) GetDataForBlockCreation(res http.ResponseWriter, req *http.Request) {
 	data, err := h.srvBlockchain.ReceiveData()
 	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 	res.Header().Set("Content-Type", "application/json")
@@ -55,52 +67,128 @@ func (h *Handlers) GetDataBlockchain(res http.ResponseWriter, req *http.Request)
 	res.Write([]byte(data))
 }
 
-func (h *Handlers) CheckData(res http.ResponseWriter, req *http.Request) {
+func (h *Handlers) VerifyData(res http.ResponseWriter, req *http.Request) {
 	_, cancel := context.WithCancel(req.Context())
 	defer cancel()
-
 	key := chi.URLParam(req, "key")
-	res.Header().Set("Location", key)
-	res.WriteHeader(http.StatusOK)
 
+	body, err := io.ReadAll(req.Body)
+	defer req.Body.Close()
+	if err != nil {
+		res.WriteHeader(h.handlerError(err))
+		return
+	}
+
+	type result struct {
+		QueueId string `json:"queueId"`
+	}
+
+	strResult := result{}
+	strResult.QueueId, err = h.srvVerify.AddData(key, string(body))
+	if err != nil {
+		res.WriteHeader(h.handlerError(err))
+		return
+	}
+
+	bodyResult, err := json.Marshal(strResult)
+	if err != nil {
+		res.WriteHeader(h.handlerError(err))
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusCreated)
+	res.Write(bodyResult)
 }
 
-func (h *Handlers) StatusProcessCheckData(res http.ResponseWriter, req *http.Request) {
+func (h *Handlers) GetVerificationStatus(res http.ResponseWriter, req *http.Request) {
 	_, cancel := context.WithCancel(req.Context())
 	defer cancel()
 
-	type StatusResponse struct {
-		Status  string `json:"status"`
-		QueueID string `json:"queueID"`
-	}
+	queueID := chi.URLParam(req, "queue_id")
+	status := h.srvVerify.GetProcessStatus(queueID)
 
-	sts := StatusResponse{
-		Status: "INVALID",
-	}
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte(status.String()))
+}
 
-	sts.QueueID = chi.URLParam(req, "queue_id")
+func (h *Handlers) AddBlockchainBlock(res http.ResponseWriter, req *http.Request) {
+	handlerStatus := http.StatusCreated
+	body, err := io.ReadAll(req.Body)
+	defer req.Body.Close()
 
-	jsonData, err := json.Marshal(sts)
 	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
+		res.WriteHeader(h.handlerError(err))
+		return
+	}
+
+	err = h.srvBlockchain.AddNewBlock(string(body))
+
+	if err != nil {
+		res.WriteHeader(h.handlerError(err))
+		return
+	}
+
+	res.WriteHeader(handlerStatus)
+}
+
+func (h *Handlers) GetBlockchainBlock(res http.ResponseWriter, req *http.Request) {
+	block, err := h.srvBlockchain.ReceiveBlock()
+	if err != nil {
+		res.WriteHeader(h.handlerError(err))
+		return
+	}
+
+	if err != nil {
+		res.WriteHeader(h.handlerError(err))
 		return
 	}
 
 	res.Header().Set("Content-Type", "application/json")
 	res.WriteHeader(http.StatusOK)
-	res.Write(jsonData)
+	res.Write([]byte(block))
 }
 
-func (h *Handlers) AddBlock(res http.ResponseWriter, req *http.Request) {
+func (h *Handlers) GetBlockVerificationData(res http.ResponseWriter, req *http.Request) {
+	blockVrf, err := h.srvVerify.RetrieveProcessedData()
+	if err != nil {
+		res.WriteHeader(h.handlerError(err))
+		return
+	}
 
+	if err != nil {
+		res.WriteHeader(h.handlerError(err))
+		return
+	}
+
+	res.Header().Set("Content-Type", "application/json")
+	res.WriteHeader(http.StatusOK)
+	res.Write([]byte(blockVrf))
 }
 
-func (h *Handlers) GetCheckDataBlock(res http.ResponseWriter, req *http.Request) {
+func (h *Handlers) UpdateVerificationStatus(res http.ResponseWriter, req *http.Request) {
+	type queueIdStatus struct {
+		QueueId string       `json:"queueId"`
+		Status  model.Status `json:"status"`
+	}
 
-}
+	body, err := io.ReadAll(req.Body)
+	defer req.Body.Close()
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
-func (h *Handlers) SetStatusProcessCheckData(res http.ResponseWriter, req *http.Request) {
+	strResult := queueIdStatus{}
+	err = json.Unmarshal(body, &strResult)
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
+	h.srvVerify.UpdateStatus(strResult.QueueId, strResult.Status)
+	res.WriteHeader(http.StatusOK)
 }
 
 func Router(handler *Handlers) chi.Router {
@@ -109,18 +197,22 @@ func Router(handler *Handlers) chi.Router {
 	// middleware
 	router.Use(middleware.СompressionResponseRequest)
 	router.Use(middleware.LoggingResponseRequest)
-	//router.Use(handler.TokenResponseRequest)
 
 	// router
 
-	router.Post("/api/setdata", http.HandlerFunc(handler.AddDataBlockchain))
-	router.Post("/api/checkdata/{key}", http.HandlerFunc(handler.CheckData))
-	router.Get("/api/checkdata/{queue_id}", http.HandlerFunc(handler.StatusProcessCheckData))
+	// приходит внешне
+	router.Post("/api/data", http.HandlerFunc(handler.CreateBlockchainData))                     // новые данные для сохранения +
+	router.Post("/api/verify/{key}", http.HandlerFunc(handler.VerifyData))                       // ключ + данные для проверки подлинности +
+	router.Get("/api/verify/status/{queue_id}", http.HandlerFunc(handler.GetVerificationStatus)) // результат проверки подлинности +
 
-	router.Post("/api/block", http.HandlerFunc(handler.AddBlock))
-	router.Get("/api/block", http.HandlerFunc(handler.GetDataBlockchain))
-	router.Get("/api/block/check", http.HandlerFunc(handler.GetCheckDataBlock))
-	router.Post("/api/block/check", http.HandlerFunc(handler.SetStatusProcessCheckData))
+	// приходит от второго сервиса
+	router.Get("/api/blockchain/data", http.HandlerFunc(handler.GetDataForBlockCreation)) // данные для создания блока +
+
+	router.Post("/api/blockchain/block", http.HandlerFunc(handler.AddBlockchainBlock)) // добавление сформированного блока +
+	router.Get("/api/blockchain/block", http.HandlerFunc(handler.GetBlockchainBlock))  // запрос блока из цепи блокчейн +
+
+	router.Get("/api/blockchain/block/verify", http.HandlerFunc(handler.GetBlockVerificationData))  // запрос данных для проверки подлинности +
+	router.Post("/api/blockchain/block/verify", http.HandlerFunc(handler.UpdateVerificationStatus)) // отправка результата проверки +
 
 	return router
 }
