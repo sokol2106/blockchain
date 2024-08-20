@@ -5,22 +5,22 @@ import (
 	"os"
 )
 
-const CServerAddress = "http://localhost:8080"
+const CServerURL = "http://localhost:8080"
 const CNoncePattern = "0000"
 
 type params struct {
-	ServerAddress string
-	NoncePattern  string
+	ServerURL    string
+	NoncePattern string
 }
 
 func main() {
 	p := params{
-		ServerAddress: os.Getenv("SERVER_ADDRESS"),
-		NoncePattern:  os.Getenv("NONCE_PATTERN"),
+		ServerURL:    os.Getenv("SERVER_URL"),
+		NoncePattern: os.Getenv("NONCE_PATTERN"),
 	}
 
-	if p.ServerAddress == "" {
-		p.ServerAddress = CServerAddress
+	if p.ServerURL == "" {
+		p.ServerURL = CServerURL
 	}
 
 	if p.NoncePattern == "" {
@@ -28,5 +28,5 @@ func main() {
 	}
 
 	ParseFlags(&p)
-	app.Run("http://localhost:8080", p.NoncePattern)
+	app.Run(p.ServerURL, p.NoncePattern)
 }

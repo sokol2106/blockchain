@@ -12,23 +12,23 @@ import (
 )
 
 type Blockminer struct {
-	address string
-	nonce   string
-	data    model.MiningData
-	block   model.Block
+	url   string
+	nonce string
+	data  model.MiningData
+	block model.Block
 }
 
-func NewBlockMiner(address string, nonce string) *Blockminer {
+func NewBlockMiner(url string, nonce string) *Blockminer {
 	return &Blockminer{
-		address: address,
-		nonce:   nonce,
-		block:   model.Block{},
+		url:   url,
+		nonce: nonce,
+		block: model.Block{},
 	}
 }
 
 func (b *Blockminer) RequestMiningData() error {
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", b.address+"/api/blockchain/data", nil)
+	req, err := http.NewRequest("GET", b.url+"/api/blockchain/data", nil)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (b *Blockminer) MineData() {
 
 func (b *Blockminer) SendMiningBlock() error {
 	jsonBlock, err := json.Marshal(b.block)
-	resp, err := http.Post(b.address+"/api/blockchain/block", "application/json", strings.NewReader(string(jsonBlock)))
+	resp, err := http.Post(b.url+"/api/blockchain/block", "application/json", strings.NewReader(string(jsonBlock)))
 	if err != nil {
 		return err
 	}

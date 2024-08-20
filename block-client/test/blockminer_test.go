@@ -10,8 +10,7 @@ import (
 )
 
 func TestRunMining(t *testing.T) {
-
-	srv := service.NewBlockminer("", "0000")
+	srv := service.NewBlockMiner("", "0000")
 	data := model.MiningData{
 		Data: generateRandomString(1000000),
 		Key:  "666666",

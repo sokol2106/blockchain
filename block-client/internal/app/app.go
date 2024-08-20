@@ -9,13 +9,13 @@ import (
 	"syscall"
 )
 
-func Run(addServer, noncePattern string) {
+func Run(serverURL, noncePattern string) {
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-	srvMiner := service.NewBlockMiner(addServer, noncePattern)
-	srvVerify := service.NewBlockVerification(addServer, noncePattern)
+	srvMiner := service.NewBlockMiner(serverURL, noncePattern)
+	srvVerify := service.NewBlockVerification(serverURL, noncePattern)
 
 	for {
 		select {
@@ -35,7 +35,8 @@ func Run(addServer, noncePattern string) {
 
 			err = srvVerify.RequestVerificationData()
 			if err == nil {
-				err = srvVerify.VerifyData()
+				srvVerify.VerifyData()
+				err = srvVerify.UpdateStatus()
 				if err != nil {
 					log.Printf("verify data: %s", err)
 				}

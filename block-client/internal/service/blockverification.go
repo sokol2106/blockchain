@@ -12,22 +12,22 @@ import (
 )
 
 type Blockverification struct {
-	block   model.VerificationBlock
-	address string
-	nonce   string
+	block model.VerificationBlock
+	url   string
+	nonce string
 }
 
-func NewBlockVerification(a, n string) *Blockverification {
+func NewBlockVerification(u, n string) *Blockverification {
 	return &Blockverification{
-		block:   model.VerificationBlock{},
-		address: a,
-		nonce:   n,
+		block: model.VerificationBlock{},
+		url:   u,
+		nonce: n,
 	}
 }
 
 func (b *Blockverification) RequestVerificationData() error {
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", b.address+"/api/blockchain/block/verify", nil)
+	req, err := http.NewRequest("GET", b.url+"/api/blockchain/block/verify", nil)
 	if err != nil {
 		return err
 	}
@@ -56,8 +56,8 @@ func (b *Blockverification) RequestVerificationData() error {
 	return nil
 }
 
-func (b *Blockverification) VerifyData() error {
-
+func (b *Blockverification) VerifyData() {
+	b.block.Status = model.StatusFailedAuthenticityCheck
 	hash := sha256.Sum256([]byte(b.block.Data))
 	markleVrf := hex.EncodeToString(hash[:])
 
@@ -65,7 +65,7 @@ func (b *Blockverification) VerifyData() error {
 	markleDB := hex.EncodeToString(hash[:])
 
 	if markleDB != markleVrf {
-		return b.UpdateStatus(model.StatusFailedAuthenticityCheck, b.block.QueueId)
+		return
 	}
 
 	markleVrfNonce := fmt.Sprintf(markleVrf+"%s", b.block.Block.Head.Nonce)
@@ -78,16 +78,16 @@ func (b *Blockverification) VerifyData() error {
 	markleDBNonceHash := hex.EncodeToString(hash[:])
 
 	if !ValidateNonce(markleVrfNonceHash, b.nonce) || !ValidateNonce(markleDBNonceHash, b.nonce) {
-		return b.UpdateStatus(model.StatusFailedAuthenticityCheck, b.block.QueueId)
+		return
 	}
 
-	return b.UpdateStatus(model.StatusMatched, b.block.QueueId)
+	b.block.Status = model.StatusMatched
 }
 
-func (b *Blockverification) UpdateStatus(s model.Status, id string) error {
+func (b *Blockverification) UpdateStatus() error {
 	data := model.QueueIdStatus{
-		Status:  s,
-		QueueId: id,
+		Status:  b.block.Status,
+		QueueId: b.block.QueueId,
 	}
 
 	body, err := json.Marshal(data)
@@ -95,7 +95,7 @@ func (b *Blockverification) UpdateStatus(s model.Status, id string) error {
 		return err
 	}
 
-	resp, err := http.Post(b.address+"/api/blockchain/block/verify",
+	resp, err := http.Post(b.url+"/api/blockchain/block/verify",
 		"application/json", strings.NewReader(string(body)))
 	if err != nil {
 		return err
@@ -106,4 +106,12 @@ func (b *Blockverification) UpdateStatus(s model.Status, id string) error {
 		return fmt.Errorf("error bad status: %s", resp.Status)
 	}
 	return nil
+}
+
+func (b *Blockverification) SetBlock(bv model.VerificationBlock) {
+	b.block = bv
+}
+
+func (b *Blockverification) GetBlock() model.VerificationBlock {
+	return b.block
 }
